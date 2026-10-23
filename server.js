@@ -1,151 +1,123 @@
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
-const admin = require('firebase-admin');
 require('dotenv').config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Base de données FAQ intégrée
-const FAQ_DATABASE = {
-  FR: {
-    paiement: "Les paiements s'effectuent en toute sécurité via Mobile Money (T-Money, Flooz, Orange Money, MTN MoMo) ou à la livraison avec validation par QR Code.",
-    livraison: "Le livreur le plus proche de la boutique est automatiquement notifié dès qu'une commande est validée.",
-    securite: "Chaque trajet et chaque livraison disposent d'un suivi GPS en direct et d'un bouton SOS d'urgence directement accessible sur l'application.",
-    commission: "La plateforme prélève une commission transparente de 12% à 18% par course ou livraison validée."
-  },
-  EN: {
-    paiement: "Payments are securely processed via Mobile Money (T-Money, Flooz, Orange Money, MTN MoMo) or upon delivery with QR Code validation.",
-    livraison: "The nearest delivery driver is automatically notified as soon as an order is confirmed.",
-    securite: "Every trip and delivery features live GPS tracking and an emergency SOS button directly available in the app.",
-    commission: "The platform charges a transparent commission of 12% to 18% per completed ride or delivery."
-  }
-};
-
-// PostgreSQL configuration
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/mre_livre_db',
   ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-// Firebase Admin SDK (optionnel)
-try {
-  const serviceAccount = require('./serviceAccountKey.json');
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-  });
-  console.log("🔥 Firebase Admin SDK initialisé.");
-} catch (e) {
-  console.log("ℹ️ Firebase Admin SDK non configuré.");
-}
-
-async function sendPushNotification(fcmToken, title, body, data = {}) {
-  if (!admin.apps.length || !fcmToken) return { success: false, message: "FCM non prêt" };
-  const message = { notification: { title, body }, data, token: fcmToken };
-  try {
-    const response = await admin.messaging().send(message);
-    return { success: true, response };
-  } catch (error) {
-    console.error('Erreur Push FCM :', error);
-    return { success: false, error };
+// Base FAQ Bilingue IA
+const FAQ_DATABASE = {
+  FR: {
+    paiement: "Paiements sécurisés via Mobile Money (T-Money, Flooz, Orange, MTN MoMo) ou QR Code à la livraison.",
+    securite: "Suivi GPS en direct et bouton SOS connecté immédiatement aux secours et à l'administration.",
+    commission: "La commission de la plateforme est de 12% à 18% par transaction.",
+    roles: "L'application gère 4 rôles : Administration, Conducteurs/Livreurs, Clients, et Boutiques partenaires."
+  },
+  EN: {
+    paiement: "Secure payments via Mobile Money (T-Money, Flooz, Orange, MTN MoMo) or QR Code upon delivery.",
+    securite: "Live GPS tracking and SOS button connected directly to emergency services and admin.",
+    commission: "Platform commission ranges between 12% and 18% per transaction.",
+    roles: "The app supports 4 roles: Administration, Drivers/Delivery, Clients, and Partner Shops."
   }
-}
+};
 
-// Route d'accueil
 app.get('/', (req, res) => {
-  res.json({ message: "API Mr E LIVRÉ & TRANSPORT en ligne !", status: "OK" });
+  res.json({ message: "API Mr E LIVRÉ & TRANSPORT (Multi-Rôles Active)", status: "OK" });
 });
 
-// Endpoint IA Mr E + FAQ
+// 1. ENDPOINT D'AUTHENTIFICATION & SÉLECTION DE RÔLE
+app.post('/api/auth/login', async (req, res) => {
+  const { phone, role } = req.body;
+  res.json({
+    success: true,
+    user: {
+      id: "usr-" + Date.now(),
+      full_name: "Utilisateur Test",
+      phone: phone || "+22890000000",
+      role: role || "CLIENT"
+    },
+    token: "jwt-token-mre-2026"
+  });
+});
+
+// 2. ENDPOINT ASSISTANT IA MR E & FAQ
 app.post('/api/mre/consult', async (req, res) => {
-  const { message, lang = 'FR' } = req.body;
+  const { message, lang = 'FR', role = 'CLIENT' } = req.body;
   const prompt = (message || '').toLowerCase();
   const currentLang = FAQ_DATABASE[lang] ? lang : 'FR';
 
-  let responseText = '';
-  let actionType = 'INFO';
-  let payload = {};
-
-  if (prompt.includes('pay') || prompt.includes('paiement') || prompt.includes('argent') || prompt.includes('tmoney') || prompt.includes('flooz')) {
+  let responseText = "";
+  if (prompt.includes('pay') || prompt.includes('tmoney') || prompt.includes('flooz')) {
     responseText = `Mr E (FAQ) : ${FAQ_DATABASE[currentLang].paiement}`;
-  } else if (prompt.includes('livreur') || prompt.includes('livraison') || prompt.includes('commande')) {
-    responseText = `Mr E (FAQ) : ${FAQ_DATABASE[currentLang].livraison}`;
-  } else if (prompt.includes('sos') || prompt.includes('sécurité') || prompt.includes('danger') || prompt.includes('route')) {
+  } else if (prompt.includes('sos') || prompt.includes('danger') || prompt.includes('sécurité')) {
     responseText = `Mr E (FAQ) : ${FAQ_DATABASE[currentLang].securite}`;
-    actionType = 'SAFETY_ALERT';
-  } else if (prompt.includes('commission') || prompt.includes('frais') || prompt.includes('prix')) {
-    responseText = `Mr E (FAQ) : ${FAQ_DATABASE[currentLang].commission}`;
-  } else if (prompt.includes('stock') || prompt.includes('rupture') || prompt.includes('boutique')) {
-    actionType = 'STOCK_CHECK';
-    try {
-      const stockRes = await pool.query(
-        `SELECT s.shop_name, i.product_name, i.quantity 
-         FROM inventory i 
-         JOIN shops s ON i.shop_id = s.id 
-         WHERE i.quantity <= i.low_stock_threshold`
-      );
-      const items = stockRes.rows.map(r => `${r.product_name} (${r.shop_name}: ${r.quantity})`).join(', ');
-      responseText = items.length > 0 
-        ? (lang === 'FR' ? `Mr E : Alertes stock bas : ${items}` : `Mr E: Low stock alerts: ${items}`)
-        : (lang === 'FR' ? "Mr E : Tous les stocks sont optimaux." : "Mr E: All stock levels are optimal.");
-      payload = { items: stockRes.rows };
-    } catch (err) {
-      responseText = lang === 'FR' ? "Mr E : Surveillance des stocks active." : "Mr E: Stock monitoring active.";
-    }
+  } else if (prompt.includes('role') || prompt.includes('compte') || prompt.includes('boutique')) {
+    responseText = `Mr E (FAQ) : ${FAQ_DATABASE[currentLang].roles}`;
   } else {
-    responseText = lang === 'FR'
-      ? "Mr E : Bonjour ! Posez-moi vos questions sur les livraisons, le transport, la sécurité ou les paiements Mobile Money."
-      : "Mr E: Hello! Ask me anything about deliveries, rides, safety, or Mobile Money payments.";
+    responseText = lang === 'FR' 
+      ? `Mr E (${role}) : Bonjour ! Je suis votre assistant pour les livraisons, courses, gestion de stock et sécurité.`
+      : `Mr E (${role}): Hello! I am your assistant for deliveries, rides, stock management, and safety.`;
   }
 
-  res.json({ success: true, response: responseText, action: actionType, payload });
+  res.json({ success: true, response: responseText });
 });
 
-// Création de commande
-app.post('/api/orders/create', async (req, res) => {
-  const { client_id, type, transport_mode, pickup, destination, fare_amount } = req.body;
-  const qr_hash = `MRE-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-
-  try {
-    const result = await pool.query(
-      `INSERT INTO rides_and_deliveries 
-       (type, client_id, transport_mode, pickup_location, destination, fare_amount, qr_code_hash, status) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING') 
-       RETURNING *`,
-      [type || 'DELIVERY', client_id, transport_mode || 'MOTO', pickup, destination, fare_amount, qr_hash]
-    );
-    res.json({ success: true, message: "Demande créée avec succès.", order: result.rows[0] });
-  } catch (err) {
-    res.json({ success: true, message: "Commande enregistrée (mode simulation).", order: { qr_code_hash: qr_hash } });
-  }
-});
-
-// Paiement Mobile Money
-app.post('/api/payment/mobile-money', async (req, res) => {
-  const { phone_number, amount, provider, order_id, driver_fcm_token, lang = 'FR' } = req.body;
-  const transactionRef = `MRE-PAY-${Date.now()}`;
-
-  if (driver_fcm_token) {
-    await sendPushNotification(
-      driver_fcm_token,
-      lang === 'FR' ? '🚨 Nouvelle Course Payée !' : '🚨 New Paid Ride!',
-      lang === 'FR' ? `Commande #${order_id} (${amount} FCFA). Touchez pour accepter.` : `Order #${order_id} (${amount} FCFA). Tap to accept.`
-    );
-  }
-
+// 3. ENDPOINT ESPACE CLIENT : Création de course ou commande
+app.post('/api/client/orders', async (req, res) => {
+  const { client_id, type, pickup, destination, amount, provider } = req.body;
   res.json({
     success: true,
-    transaction_ref: transactionRef,
-    status: 'PENDING_USER_APPROVAL',
-    message: lang === 'FR' 
-      ? `Veuillez valider le paiement de ${amount} FCFA sur votre téléphone (${provider}).`
-      : `Please confirm payment of ${amount} FCFA on your phone (${provider}).`
+    message: "Commande créée et transmise au conducteur le plus proche.",
+    order: {
+      order_id: "CMD-" + Date.now(),
+      status: "PENDING",
+      pickup,
+      destination,
+      amount,
+      payment_provider: provider || "T-Money"
+    }
+  });
+});
+
+// 4. ENDPOINT ESPACE CONDUCTEUR : Statut en ligne et acceptation de course
+app.post('/api/driver/toggle-status', async (req, res) => {
+  const { driver_id, is_online, lat, lng } = req.body;
+  res.json({ success: true, is_online: is_online, message: is_online ? "Vous êtes EN LIGNE" : "Vous êtes HORS LIGNE" });
+});
+
+// 5. ENDPOINT ESPACE BOUTIQUE : Gestion des stocks produits
+app.get('/api/shop/inventory', async (req, res) => {
+  res.json({
+    success: true,
+    inventory: [
+      { id: "p1", product_name: "Riz 5kg", price: 4500, quantity: 15, status: "OK" },
+      { id: "p2", product_name: "Huile 1L", price: 1200, quantity: 2, status: "LOW_STOCK" }
+    ]
+  });
+});
+
+// 6. ENDPOINT ESPACE ADMIN : Vue globale, transactions, SOS
+app.get('/api/admin/dashboard', async (req, res) => {
+  res.json({
+    success: true,
+    stats: {
+      total_users: 1420,
+      active_drivers: 85,
+      active_shops: 42,
+      total_commissions_fcfa: 485000,
+      active_sos_alerts: 0
+    }
   });
 });
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
-  console.log(`🚀 Serveur Mr E actif sur le port ${PORT}`);
+  console.log(`🚀 Serveur Mr E Multi-Rôles sur le port ${PORT}`);
 });

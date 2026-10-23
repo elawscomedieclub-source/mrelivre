@@ -4,20 +4,19 @@
   <meta charset="UTF-8">
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mr E LIVRÉ & TRANSPORT</title>
-
-  <!-- Feuilles de style Leaflet (Carte) -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-
+  <title>Mr E LIVRÉ & TRANSPORT - Plateforme Multi-Rôles</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <style>
     :root {
       --primary: #1e3a8a;
       --secondary: #2563eb;
-      --bg: #f8fafc;
+      --accent: #10b981;
+      --warning: #f59e0b;
       --danger: #ef4444;
+      --bg: #f8fafc;
     }
     body {
-      font-family: Arial, sans-serif;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       margin: 0;
       background-color: var(--bg);
       color: #0f172a;
@@ -25,18 +24,37 @@
     header {
       background: var(--primary);
       color: white;
-      padding: 1rem 2rem;
+      padding: 1rem 1.5rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
+    }
+    .role-switcher {
+      display: flex;
+      gap: 0.5rem;
+      background: rgba(255,255,255,0.15);
+      padding: 0.3rem;
+      border-radius: 8px;
+    }
+    .role-btn {
+      background: transparent;
+      color: white;
+      border: none;
+      padding: 0.5rem 0.8rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 13px;
+    }
+    .role-btn.active {
+      background: white;
+      color: var(--primary);
     }
     .container {
       padding: 1.5rem;
       max-width: 1200px;
       margin: auto;
-      display: grid;
-      grid-template-columns: 2fr 1fr;
-      gap: 1.5rem;
     }
     .card {
       background: white;
@@ -45,15 +63,20 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.08);
       margin-bottom: 1.5rem;
     }
-    /* Correction cruciale pour que la carte s'affiche */
     #map {
       width: 100%;
-      height: 350px;
-      min-height: 350px;
+      height: 320px;
       border-radius: 10px;
-      margin-top: 1rem;
       border: 1px solid #cbd5e1;
-      z-index: 1;
+      margin-top: 1rem;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1.5rem;
+    }
+    @media (max-width: 768px) {
+      .grid-2 { grid-template-columns: 1fr; }
     }
     .btn {
       background: var(--secondary);
@@ -64,130 +87,228 @@
       cursor: pointer;
       font-weight: bold;
     }
-    .btn-sos {
-      background: var(--danger);
-    }
-    .form-group {
-      margin-bottom: 1rem;
-    }
+    .btn-sos { background: var(--danger); }
+    .btn-success { background: var(--accent); }
+    .form-group { margin-bottom: 1rem; }
     .form-group input, .form-group select {
-      width: 100%;
-      padding: 0.6rem;
-      border-radius: 6px;
-      border: 1px solid #cbd5e1;
-      box-sizing: border-box;
+      width: 100%; padding: 0.6rem; border-radius: 6px; border: 1px solid #cbd5e1; box-sizing: border-box;
     }
-    .faq-btn {
-      background: #f1f5f9;
-      color: #1e3a8a;
-      border: 1px solid #cbd5e1;
-      padding: 0.6rem;
-      border-radius: 6px;
-      cursor: pointer;
-      text-align: left;
-      font-size: 13px;
-      width: 100%;
-      margin-bottom: 6px;
+    .table-custom {
+      width: 100%; border-collapse: collapse; margin-top: 1rem;
     }
-    .faq-btn:hover {
-      background: #e2e8f0;
+    .table-custom th, .table-custom td {
+      padding: 0.75rem; border: 1px solid #e2e8f0; text-align: left;
     }
+    .table-custom th { background: #f1f5f9; }
+    .view-panel { display: none; }
+    .view-panel.active { display: block; }
   </style>
 </head>
 <body>
 
 <header>
-  <h2>Mr E LIVRÉ &amp; TRANSPORT</h2>
-  <div>
-    <button class="btn btn-sos" onclick="alert('SOS Alerte transmise !')">🚨 SOS</button>
+  <h2>📦 Mr E LIVRÉ &amp; TRANSPORT</h2>
+  
+  <!-- BARRE DE SÉLECTION DES 4 RÔLES -->
+  <div class="role-switcher">
+    <button class="role-btn active" onclick="switchRole('CLIENT')">👤 Client</button>
+    <button class="role-btn" onclick="switchRole('DRIVER')">🛵 Conducteur</button>
+    <button class="role-btn" onclick="switchRole('SHOP')">🏪 Boutique</button>
+    <button class="role-btn" onclick="switchRole('ADMIN')">⚙️ Admin</button>
   </div>
+
+  <button class="btn btn-sos" onclick="triggerSOS()">🚨 SOS</button>
 </header>
 
 <div class="container">
-  <div>
-    <div class="card">
-      <h3>🗺️ Carte &amp; Navigation Sécurisée</h3>
-      <p style="color: #64748b;">Suivi GPS en temps réel à Lomé.</p>
-      <!-- Zone Carte Leaflet -->
-      <div id="map"></div>
-    </div>
 
-    <div class="card">
-      <h3>🛵 Commander une Course / Livraison</h3>
-      <div class="form-group">
-        <label>Mode de Transport :</label>
-        <select id="transportMode">
-          <option value="MOTO">Moto-Taxi / Zem</option>
-          <option value="TAXI">Taxi Course</option>
-          <option value="AUTO">Voiture VTC</option>
-        </select>
+  <!-- ==================== 1. VUE CLIENT ==================== -->
+  <div id="view-CLIENT" class="view-panel active">
+    <div class="grid-2">
+      <div>
+        <div class="card">
+          <h3>🗺️ Carte &amp; Livreurs Proches (Lomé)</h3>
+          <div id="map"></div>
+        </div>
+        <div class="card">
+          <h3>🛵 Commander une Course ou Livraison</h3>
+          <div class="form-group">
+            <label>Mode de Transport :</label>
+            <select id="clientMode">
+              <option value="MOTO">Moto-Taxi / Zem</option>
+              <option value="TAXI">Taxi Course</option>
+              <option value="AUTO">VTC Voiture</option>
+            </select>
+          </div>
+          <div class="form-group"><input type="text" id="clientPickup" placeholder="Départ (ex: Assivito)"></div>
+          <div class="form-group"><input type="text" id="clientDest" placeholder="Destination (ex: Tokoin)"></div>
+          <button class="btn" style="width:100%;" onclick="orderClient()">Payer par Mobile Money (T-Money / Flooz)</button>
+        </div>
       </div>
-      <div class="form-group">
-        <input type="text" id="pickup" placeholder="Lieu de départ (ex: Assivito)">
+      <div>
+        <div class="card">
+          <h3>🤖 Assistant IA Mr E</h3>
+          <div id="chat-CLIENT" style="height:220px; overflow-y:auto; background:#f1f5f9; padding:0.75rem; border-radius:8px; margin-bottom:1rem;">
+            <p><strong>Mr E:</strong> Bonjour ! Posez-moi une question sur vos courses ou paiements.</p>
+          </div>
+          <input type="text" id="input-CLIENT" placeholder="Question..." style="width:100%; padding:0.6rem; box-sizing:border-box;">
+          <button class="btn" style="width:100%; margin-top:0.5rem;" onclick="sendChat('CLIENT')">Envoyer</button>
+        </div>
       </div>
-      <div class="form-group">
-        <input type="text" id="destination" placeholder="Destination (ex: Tokoin)">
-      </div>
-      <button class="btn" style="width:100%;" onclick="commander()">Commander par Mobile Money</button>
     </div>
   </div>
 
-  <div>
+  <!-- ==================== 2. VUE CONDUCTEUR / LIVREUR ==================== -->
+  <div id="view-DRIVER" class="view-panel">
     <div class="card">
-      <h3>🤖 Assistant IA Mr E</h3>
-      <p style="color: #64748b;">Aide &amp; FAQ automatique.</p>
-      <div id="chat-box" style="height: 200px; overflow-y: auto; background: #f1f5f9; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem;">
-        <p><strong>Mr E:</strong> Bonjour ! Je suis votre assistant. Posez-moi vos questions.</p>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3>🛵 Espace Conducteur &amp; Livreur</h3>
+        <button class="btn btn-success" id="driverStatusBtn" onclick="toggleDriverOnline()">PASSER EN LIGNE</button>
       </div>
-      <input type="text" id="userInput" placeholder="Poser une question..." style="width: 100%; padding: 0.6rem; border-radius: 6px; border: 1px solid #cbd5e1; box-sizing: border-box;">
-      <button class="btn" style="width: 100%; margin-top: 0.5rem;" onclick="envoyer()">Envoyer</button>
+      <p style="color:#64748b;">Recevez les demandes de courses et livraisons en temps réel à Lomé.</p>
     </div>
-
-    <div class="card">
-      <h3>❓ FAQ &amp; Aide Rapide</h3>
-      <button class="faq-btn" onclick="poserFAQ('Paiement')">💳 Paiements Mobile Money</button>
-      <button class="faq-btn" onclick="poserFAQ('Livraison')">🛵 Notification des Livreurs</button>
-      <button class="faq-btn" onclick="poserFAQ('Sécurité')">🚨 Bouton SOS &amp; Sécurité</button>
+    <div class="grid-2">
+      <div class="card">
+        <h3>📋 Demandes de Courses Disponibles</h3>
+        <table class="table-custom">
+          <thead>
+            <tr><th>Type</th><th>Trajet</th><th>Prix</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>🛵 LIVRAISON</td>
+              <td>Grand Marché ➔ Tokoin</td>
+              <td>1 500 FCFA</td>
+              <td><button class="btn btn-success" onclick="acceptRide('CMD-101')">Accepter</button></td>
+            </tr>
+            <tr>
+              <td>🚕 TAXI</td>
+              <td>Aéroport ➔ Bè Kpota</td>
+              <td>3 000 FCFA</td>
+              <td><button class="btn btn-success" onclick="acceptRide('CMD-102')">Accepter</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3>💰 Gains &amp; Portefeuille</h3>
+        <h2>14 500 FCFA</h2>
+        <p>Commission retenue : 12%</p>
+        <button class="btn" style="width:100%;">Retirer vers Mobile Money</button>
+      </div>
     </div>
   </div>
+
+  <!-- ==================== 3. VUE BOUTIQUE PARTENAIRE ==================== -->
+  <div id="view-SHOP" class="view-panel">
+    <div class="card">
+      <h3>🏪 Espace Boutique &amp; Gestion des Stocks</h3>
+      <p style="color:#64748b;">Digitalisez votre inventaire et recevez des commandes de livraison automatique.</p>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>📦 Inventaire Produits</h3>
+        <table class="table-custom">
+          <thead>
+            <tr><th>Produit</th><th>Prix</th><th>Stock</th><th>Alerte IA</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Riz 5kg</td><td>4 500 FCFA</td><td>15</td><td><span style="color:green;">OK</span></td></tr>
+            <tr><td>Huile végétale 1L</td><td>1 200 FCFA</td><td>2</td><td><span style="color:red; font-weight:bold;">Stock Bas</span></td></tr>
+          </tbody>
+        </table>
+        <button class="btn" style="margin-top:1rem;" onclick="alert('Formulaire d'ajout de produit')">+ Ajouter un Produit</button>
+      </div>
+      <div class="card">
+        <h3>🤖 IA Mr E - Gestionnaire de Stock</h3>
+        <p><strong>Alerte Mr E :</strong> L'huile végétale est presque en rupture. Souhaitez-vous contacter le fournisseur ?</p>
+        <button class="btn btn-success" style="width:100%;">Recommander Stock</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 4. VUE ADMINISTRATION ==================== -->
+  <div id="view-ADMIN" class="view-panel">
+    <div class="card">
+      <h3>⚙️ Dashboard d'Administration Globale</h3>
+      <p style="color:#64748b;">Supervision de la plateforme, gestion des commissions (12%-18%) et sécurité.</p>
+    </div>
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
+      <div class="card" style="text-align:center;"><h4>Utilisateurs</h4><h2>1,420</h2></div>
+      <div class="card" style="text-align:center;"><h4>Conducteurs Actifs</h4><h2>85</h2></div>
+      <div class="card" style="text-align:center;"><h4>Boutiques</h4><h2>42</h2></div>
+      <div class="card" style="text-align:center;"><h4>Commissions</h4><h2>485 000 FCFA</h2></div>
+    </div>
+    <div class="card">
+      <h3>🚨 Centre de Contrôle Sécurité &amp; SOS</h3>
+      <p style="color:green;">✔ Aucun incident SOS en cours à Lomé.</p>
+    </div>
+  </div>
+
 </div>
 
-<!-- Script Leaflet (Carte JS) -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-  // Initialisation de la carte centree sur Lome, Togo
+  let currentRole = 'CLIENT';
+  let isDriverOnline = false;
+  const API_BASE_URL = "https://mre-livre-backend.onrender.com";
+
+  // Configuration Carte Leaflet
   const map = L.map('map').setView([6.1372, 1.2125], 13);
-
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
+    attribution: '© OpenStreetMap'
   }).addTo(map);
+  L.marker([6.1372, 1.2125]).addTo(map).bindPopup('<b>Mr E Lomé</b><br>Plateforme Active').openPopup();
 
-  // Marqueur central sur Lome
-  L.marker([6.1372, 1.2125]).addTo(map)
-    .bindPopup('<b>Mr E LIVRÉ & TRANSPORT</b><br>Lomé, Togo.')
-    .openPopup();
+  function switchRole(role) {
+    currentRole = role;
+    document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
 
-  // Forcer le redimensionnement pour eviter les zones grises
-  setTimeout(() => { map.invalidateSize(); }, 500);
+    document.querySelectorAll('.view-panel').forEach(v => v.classList.remove('active'));
+    document.getElementById(`view-${role}`).classList.add('active');
 
-  function commander() {
-    alert("Demande enregistree ! Validation Mobile Money en cours...");
+    if (role === 'CLIENT') {
+      setTimeout(() => { map.invalidateSize(); }, 300);
+    }
   }
 
-  function envoyer() {
-    const input = document.getElementById('userInput');
-    const chat = document.getElementById('chat-box');
+  function triggerSOS() {
+    alert("🚨 ALERTE SOS : Alerte envoyée d'urgence au centre de contrôle Admin et aux secours !");
+  }
+
+  function toggleDriverOnline() {
+    isDriverOnline = !isDriverOnline;
+    const btn = document.getElementById('driverStatusBtn');
+    if (isDriverOnline) {
+      btn.innerText = "VOUS ÊTES EN LIGNE";
+      btn.style.background = "#10b981";
+    } else {
+      btn.innerText = "PASSER EN LIGNE";
+      btn.style.background = "#2563eb";
+    }
+  }
+
+  function orderClient() {
+    const pickup = document.getElementById('clientPickup').value || 'Centre-ville';
+    const dest = document.getElementById('clientDest').value || 'Aéroport';
+    alert(`Demande envoyée ! Recherche d'un livreur de Assivito vers ${dest}. Validation Mobile Money...`);
+  }
+
+  function acceptRide(cmdId) {
+    alert(`Course ${cmdId} acceptée ! GPS activé vers le client.`);
+  }
+
+  function sendChat(role) {
+    const input = document.getElementById(`input-${role}`);
+    const chat = document.getElementById(`chat-${role}`);
     if (!input.value) return;
 
-    chat.innerHTML += `<p><strong>Vous:</strong> ${input.value}</p>`;
-    chat.innerHTML += `<p><strong>Mr E:</strong> Message reçu. Tout est opérationnel !</p>`;
+    const val = input.value;
+    chat.innerHTML += `<p><strong>Vous:</strong> ${val}</p>`;
+    chat.innerHTML += `<p><strong>Mr E (${role}):</strong> Message bien reçu ! Je traite votre demande.</p>`;
     input.value = '';
     chat.scrollTop = chat.scrollHeight;
-  }
-
-  function poserFAQ(sujet) {
-    document.getElementById('userInput').value = "Question sur " + sujet;
-    envoyer();
   }
 </script>
 </body>

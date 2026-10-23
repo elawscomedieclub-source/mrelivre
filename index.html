@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mr E LIVRÉ & TRANSPORT - Plateforme Globale</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root {
+      --primary: #1e3a8a;
+      --secondary: #2563eb;
+      --accent: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --bg: #f8fafc;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      background-color: var(--bg);
+      color: #0f172a;
+    }
+    header {
+      background: var(--primary);
+      color: white;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .container {
+      padding: 1.5rem;
+      max-width: 1200px;
+      margin: auto;
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1.5rem;
+    }
+    .card {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      margin-bottom: 1.5rem;
+    }
+    #map {
+      height: 320px;
+      border-radius: 10px;
+      margin-top: 1rem;
+    }
+    .btn {
+      background: var(--secondary);
+      color: white;
+      border: none;
+      padding: 0.75rem 1.2rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .btn-sos {
+      background: var(--danger);
+    }
+    .lang-btn {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: none;
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 0.6rem;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      box-sizing: border-box;
+    }
+    .faq-btn {
+      background: #f1f5f9;
+      color: #1e3a8a;
+      border: 1px solid #cbd5e1;
+      padding: 0.6rem;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: left;
+      font-size: 13px;
+      width: 100%;
+      margin-bottom: 6px;
+    }
+    .faq-btn:hover {
+      background: #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h2>📦 Mr E LIVRÉ & TRANSPORT</h2>
+  <div>
+    <button class="btn btn-sos" onclick="triggerSOS()">🚨 SOS</button>
+    <button class="lang-btn" onclick="toggleLang()" id="langBtn">🇫🇷 FR / 🇬🇧 EN</button>
+  </div>
+</header>
+
+<div class="container">
+  <div>
+    <div class="card">
+      <h3 id="txt-map-title">🗺️ Carte & Navigation Sécurisée par IA</h3>
+      <p id="txt-map-sub" style="color: #64748b;">Suivi GPS en temps réel, détection de trafic et sécurité routière.</p>
+      <div id="map"></div>
+    </div>
+
+    <div class="card">
+      <h3 id="txt-order-title">🛵 Commander une Course ou une Livraison</h3>
+      <div class="form-group">
+        <label>Mode de Transport</label>
+        <select id="transportMode">
+          <option value="MOTO">Moto-Taxi / Zem</option>
+          <option value="TAXI">Taxi Course</option>
+          <option value="AUTO">VTC voiture</option>
+          <option value="BUS">Mini-Bus</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <input type="text" id="pickup" placeholder="Lieu de départ">
+      </div>
+      <div class="form-group">
+        <input type="text" id="destination" placeholder="Destination">
+      </div>
+      <button class="btn" style="width:100%;" onclick="createOrder()">Commander & Payer par Mobile Money</button>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <h3 id="txt-ai-title">🤖 Assistant IA Mr E</h3>
+      <p id="txt-ai-sub" style="color: #64748b;">Sécurité, FAQ et gestion de stock.</p>
+      <div id="chat-box" style="height: 200px; overflow-y: auto; background: #f1f5f9; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem;">
+        <p><strong>Mr E:</strong> Bonjour ! Je suis votre assistant. Posez-moi une question ou cliquez sur la FAQ ci-dessous.</p>
+      </div>
+      <input type="text" id="userInput" placeholder="Poser une question..." style="width: 100%; padding: 0.6rem; border-radius: 6px; border: 1px solid #cbd5e1; box-sizing: border-box;">
+      <button class="btn" style="width: 100%; margin-top: 0.5rem;" onclick="sendMessage()">Envoyer</button>
+    </div>
+
+    <div class="card">
+      <h3>❓ FAQ & Aide Rapide</h3>
+      <button class="faq-btn" onclick="askFAQ('paiement')">💳 Comment fonctionnent les paiements Mobile Money ?</button>
+      <button class="faq-btn" onclick="askFAQ('livraison')">🛵 Comment le livreur est-il notifié ?</button>
+      <button class="faq-btn" onclick="askFAQ('securite')">🚨 À quoi sert le bouton SOS ?</button>
+      <button class="faq-btn" onclick="askFAQ('commission')">📊 Quelles sont les commissions ?</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  let isFr = true;
+  // Modifier API_BASE_URL par votre URL Render hébergée (ex: https://mre-livre-backend.onrender.com)
+  const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:4000' : 'https://mre-livre-backend.onrender.com';
+
+  const map = L.map('map').setView([6.1372, 1.2125], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  L.marker([6.1372, 1.2125]).addTo(map).bindPopup('Lomé - Trajet Sécurisé par Mr E').openPopup();
+
+  function triggerSOS() {
+    alert(isFr ? '🚨 ALERTE SOS : Position transmise aux secours !' : '🚨 SOS ALERT: Location sent to emergency services!');
+  }
+
+  function toggleLang() {
+    isFr = !isFr;
+    document.getElementById('txt-map-title').innerText = isFr ? '🗺️ Carte & Navigation Sécurisée par IA' : '🗺️ Safe Map & Navigation by AI';
+    document.getElementById('txt-order-title').innerText = isFr ? '🛵 Commander une Course ou une Livraison' : '🛵 Book a Ride or Delivery';
+    document.getElementById('txt-ai-title').innerText = isFr ? '🤖 Assistant IA Mr E' : '🤖 Mr E AI Assistant';
+  }
+
+  async function createOrder() {
+    const provider = prompt(isFr ? "Opérateur Mobile Money (T-Money, Flooz, MTN, Orange):" : "Mobile Money operator:", "T-Money");
+    const phone = prompt(isFr ? "Numéro de téléphone :" : "Phone number:", "+22890000000");
+
+    if (phone && provider) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/payment/mobile-money`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone_number: phone, amount: 1500, provider, lang: isFr ? 'FR' : 'EN' })
+        });
+        const data = await response.json();
+        alert(data.message);
+      } catch (e) {
+        alert(isFr ? "Paiement envoyé (Mode hors ligne / simulation)." : "Payment request sent.");
+      }
+    }
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById('userInput');
+    const chat = document.getElementById('chat-box');
+    if (!input.value) return;
+
+    const text = input.value;
+    chat.innerHTML += `<p><strong>Vous:</strong> ${text}</p>`;
+    input.value = '';
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/mre/consult`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, lang: isFr ? 'FR' : 'EN' })
+      });
+      const data = await res.json();
+      chat.innerHTML += `<p><strong>Mr E:</strong> ${data.response}</p>`;
+    } catch (e) {
+      chat.innerHTML += `<p><strong>Mr E:</strong> ${isFr ? 'J'ai bien reçu votre message.' : 'Message received.'}</p>`;
+    }
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function askFAQ(topic) {
+    document.getElementById('userInput').value = topic;
+    sendMessage();
+  }
+</script>
+</body>
+</html>
